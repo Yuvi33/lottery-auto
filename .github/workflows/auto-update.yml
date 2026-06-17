@@ -1,4 +1,4 @@
-name: Auto Scraper
+name: Auto Scraper & SEO
 on:
   schedule:
     - cron: '35 7 * * *'
@@ -14,9 +14,16 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '18'
+      
+      # 1. Scrape the numbers
       - run: node scraper.js
+      
+      # 2. Generate SEO pages
+      - run: node generate-seo.js
+      
+      # 3. Save everything
       - run: |
           git config user.name "Bot"
           git config user.email "bot@github.com"
-          git add data/result.json
-          git diff --staged --quiet || git commit -m "Update" && git push
+          git add -A
+          git diff --staged --quiet || git commit -m "Update results & SEO" && git push
