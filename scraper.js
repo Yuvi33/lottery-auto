@@ -51,7 +51,7 @@ function extractNumber(text) {
 }
 
 async function main() {
-  const dateStr = '16-06-2026';
+  const dateStr = getTodayDate();
   console.log("========================================");
   console.log("Fetching results for: " + dateStr);
   console.log("========================================");
