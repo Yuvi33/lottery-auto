@@ -2,12 +2,9 @@ const OCR_API_KEY = 'K86614421788957';
 const fs = require('fs');
 const path = require('path');
 
-function getTodayDate() {
-  const t = new Date();
-  return `${String(t.getDate()).padStart(2,'0')}-${String(t.getMonth()+1).padStart(2,'0')}-${t.getFullYear()}`;
-}
+// HARDCODED FOR TESTING YESTERDAY
+const dateStr = '16-06-2026'; 
 
-// This function reads an image URL and extracts text
 async function ocrImage(imageUrl) {
   try {
     console.log("Downloading image: " + imageUrl);
@@ -17,7 +14,6 @@ async function ocrImage(imageUrl) {
     const buffer = await response.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
     
-    // Send to OCR API
     const formData = new URLSearchParams();
     formData.append("base64Image", "data:image/jpeg;base64," + base64);
     formData.append("language", "eng");
@@ -40,7 +36,6 @@ async function ocrImage(imageUrl) {
   return null;
 }
 
-// This function finds the winning number in the text
 function extractNumber(text) {
   if (!text) return "PENDING";
   const match = text.match(/1[sst]+\s*[Pp]rize\s*([A-Za-z0-9]\s?[A-Za-z0-9]\s?[A-Z0-9]\s?\d\s?\d\s?\d\s?\d\s?\d)/i);
@@ -52,30 +47,38 @@ function extractNumber(text) {
 }
 
 async function main() {
-  const dateStr = getTodayDate();
   console.log("========================================");
   console.log("Fetching secret page for: " + dateStr);
   console.log("========================================");
 
-  // 1. Knock on the secret door (getContent.php)
+  // 1. Knock on the secret door WITH a Fake Browser ID Card
   const formBody = new URLSearchParams();
   formBody.append('id', dateStr);
 
   const pageRes = await fetch('https://www.nagalandlotteries.com/getContent.php', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Requested-With': 'XMLHttpRequest',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Referer': 'https://www.nagalandlotteries.com/results.php'
+    },
     body: formBody.toString()
   });
   
   const html = await pageRes.text();
   
-  // 2. Find all images hidden inside the HTML response
+  // SPY TOOL: Print exactly what the website gave us back
+  console.log("--- SPY LOG: What the website returned ---");
+  console.log(html.substring(0, 800)); 
+  console.log("--- END SPY LOG ---");
+
+  // 2. Find all images 
   const imgRegex = /src=["'](.*?\.(?:jpg|jpeg|png))["']/gi;
   let images = [];
   let match;
   while ((match = imgRegex.exec(html)) !== null) {
     let url = match[1];
-    // Fix relative URLs (e.g., /images/pic.jpg -> https://www.../images/pic.jpg)
     if (!url.startsWith('http')) {
       url = 'https://www.nagalandlotteries.com/' + url.replace(/^\//, '');
     }
@@ -84,8 +87,7 @@ async function main() {
 
   console.log("Found " + images.length + " result images.");
 
-  // 3. Read the images using OCR
-  // Usually: Image 0 = 1PM, Image 1 = 6PM, Image 2 = 8PM
+  // 3. Read the images
   let num1pm = "PENDING", num6pm = "PENDING", num8pm = "PENDING";
 
   if (images.length > 0) {
