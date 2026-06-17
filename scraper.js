@@ -2,17 +2,16 @@ const OCR_API_KEY = 'K86614421788957';
 const fs = require('fs');
 const path = require('path');
 
-// STILL TESTING YESTERDAY
-const dateStr = '16-06-2026'; 
+// BACK TO AUTOMATIC DATE!
+function getTodayDate() {
+  const t = new Date();
+  return `${String(t.getDate()).padStart(2,'0')}-${String(t.getMonth()+1).padStart(2,'0')}-${t.getFullYear()}`;
+}
 
 async function ocrPdf(pdfUrl) {
   try {
-    console.log("Downloading PDF: " + pdfUrl);
     const response = await fetch(pdfUrl);
-    if (!response.ok) {
-      console.log("PDF not found at: " + pdfUrl);
-      return null;
-    }
+    if (!response.ok) return null;
     
     const buffer = await response.arrayBuffer();
     const base64Pdf = Buffer.from(buffer).toString('base64');
@@ -30,37 +29,31 @@ async function ocrPdf(pdfUrl) {
     });
     
     const data = await ocrRes.json();
-    
-    // X-RAY VISION: Print exactly what the OCR API said
-    console.log("--- X-RAY VISION (OCR Response) ---");
-    console.log(JSON.stringify(data).substring(0, 1200));
-    console.log("--- END X-RAY VISION ---");
-
     if (data.ParsedResults && data.ParsedResults.length > 0) {
       return data.ParsedResults[0].ParsedText;
-    } else {
-      console.log("OCR Failed to parse text.");
     }
   } catch (e) {
-    console.error("OCR Network Error:", e.message);
+    console.error("OCR failed:", e.message);
   }
   return null;
 }
 
 function extractNumber(text) {
   if (!text) return "PENDING";
-  // Super loose regex to catch the number no matter what words are around it
-  const match = text.match(/([A-Za-z]\s?[A-Za-z]\s?[A-Z0-9]\s?\d\s?\d\s?\d\s?\d\s?\d)/i);
+  // THE MAGIC FIX: Look for Number-Number-Letter Space Number-Number-Number-Number-Number (e.g., 53H 25510)
+  const match = text.match(/(\d{2}[A-Za-z]\s+\d{5})/);
   if (match) {
-    let num = match[1].replace(/\s+/g, '').toUpperCase();
-    return num.substring(0,3) + " " + num.substring(3);
+    // Clean up any weird spaces and make it uppercase
+    let num = match[1].replace(/\s+/g, ' ').toUpperCase();
+    return num;
   }
   return "PENDING";
 }
 
 async function main() {
+  const dateStr = getTodayDate();
   console.log("========================================");
-  console.log("Fetching secret page for: " + dateStr);
+  console.log("Fetching results for: " + dateStr);
   console.log("========================================");
 
   const formBody = new URLSearchParams();
@@ -87,30 +80,35 @@ async function main() {
     pdfFiles.push(match[1]);
   }
 
-  console.log("Found " + pdfFiles.length + " PDF files.");
+  console.log("Found " + pdfFiles.length + " PDFs.");
 
   let num1pm = "PENDING", num6pm = "PENDING", num8pm = "PENDING";
 
   if (pdfFiles.length > 0) {
-    console.log("Reading 1 PM PDF...");
+    console.log("Scanning 1st PDF...");
     num1pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[0]));
-    console.log(">>> 1 PM RESULT IS: " + num1pm);
+    console.log("1st PDF Number: " + num1pm);
   }
   if (pdfFiles.length > 1) {
-    console.log("Reading 6 PM PDF...");
+    console.log("Scanning 2nd PDF...");
     num6pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[1]));
-    console.log(">>> 6 PM RESULT IS: " + num6pm);
+    console.log("2nd PDF Number: " + num6pm);
+  }
+  if (pdfFiles.length > 2) {
+    console.log("Scanning 3rd PDF...");
+    num8pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[2]));
+    console.log("3rd PDF Number: " + num8pm);
   }
 
   const results = {
     "1pm": { "number": num1pm, "date": dateStr },
     "6pm": { "number": num6pm, "date": dateStr },
-    "8pm": { "number": "PENDING", "date": dateStr }
+    "8pm": { "number": num8pm, "date": dateStr }
   };
 
   fs.writeFileSync(path.join(__dirname, 'data', 'result.json'), JSON.stringify(results, null, 2));
   console.log("========================================");
-  console.log("Saved to result.json!");
+  console.log("SUCCESS! Saved to database.");
   console.log("========================================");
 }
 
