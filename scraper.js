@@ -2,20 +2,24 @@ const OCR_API_KEY = 'K86614421788957';
 const fs = require('fs');
 const path = require('path');
 
-// HARDCODED FOR TESTING YESTERDAY
+// STILL TESTING YESTERDAY TO PROVE IT WORKS
 const dateStr = '16-06-2026'; 
 
-async function ocrImage(imageUrl) {
+async function ocrPdf(pdfUrl) {
   try {
-    console.log("Downloading image: " + imageUrl);
-    const response = await fetch(imageUrl);
-    if (!response.ok) return null;
+    console.log("Downloading PDF: " + pdfUrl);
+    const response = await fetch(pdfUrl);
+    if (!response.ok) {
+      console.log("PDF not found at: " + pdfUrl);
+      return null;
+    }
     
     const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString('base64');
+    const base64Pdf = Buffer.from(buffer).toString('base64');
     
+    // Send PDF to OCR
     const formData = new URLSearchParams();
-    formData.append("base64Image", "data:image/jpeg;base64," + base64);
+    formData.append("base64Image", "data:application/pdf;base64," + base64Pdf);
     formData.append("language", "eng");
     formData.append("isOverlayRequired", "false");
     formData.append("OCREngine", "2");
@@ -51,7 +55,6 @@ async function main() {
   console.log("Fetching secret page for: " + dateStr);
   console.log("========================================");
 
-  // 1. Knock on the secret door WITH a Fake Browser ID Card
   const formBody = new URLSearchParams();
   formBody.append('id', dateStr);
 
@@ -60,7 +63,7 @@ async function main() {
     headers: { 
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-Requested-With': 'XMLHttpRequest',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Referer': 'https://www.nagalandlotteries.com/results.php'
     },
     body: formBody.toString()
@@ -68,45 +71,35 @@ async function main() {
   
   const html = await pageRes.text();
   
-  // SPY TOOL: Print exactly what the website gave us back
-  console.log("--- SPY LOG: What the website returned ---");
-  console.log(html.substring(0, 800)); 
-  console.log("--- END SPY LOG ---");
-
-  // 2. Find all images 
-  const imgRegex = /src=["'](.*?\.(?:jpg|jpeg|png))["']/gi;
-  let images = [];
+  // FIND THE PDF FILENAMES (e.g., MN160626.PDF)
+  const pdfRegex = /data-id="(.*?\.PDF)"/gi;
+  let pdfFiles = [];
   let match;
-  while ((match = imgRegex.exec(html)) !== null) {
-    let url = match[1];
-    if (!url.startsWith('http')) {
-      url = 'https://www.nagalandlotteries.com/' + url.replace(/^\//, '');
-    }
-    images.push(url);
+  while ((match = pdfRegex.exec(html)) !== null) {
+    pdfFiles.push(match[1]);
   }
 
-  console.log("Found " + images.length + " result images.");
+  console.log("Found " + pdfFiles.length + " PDF files: " + JSON.stringify(pdfFiles));
 
-  // 3. Read the images
   let num1pm = "PENDING", num6pm = "PENDING", num8pm = "PENDING";
 
-  if (images.length > 0) {
-    console.log("Reading 1 PM image...");
-    num1pm = extractNumber(await ocrImage(images[0]));
+  // Read the PDFs in order (1st is usually 1pm, 2nd is 6pm, 3rd is 8pm)
+  if (pdfFiles.length > 0) {
+    console.log("Reading 1 PM PDF...");
+    num1pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[0]));
     console.log("1 PM Result: " + num1pm);
   }
-  if (images.length > 1) {
-    console.log("Reading 6 PM image...");
-    num6pm = extractNumber(await ocrImage(images[1]));
+  if (pdfFiles.length > 1) {
+    console.log("Reading 6 PM PDF...");
+    num6pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[1]));
     console.log("6 PM Result: " + num6pm);
   }
-  if (images.length > 2) {
-    console.log("Reading 8 PM image...");
-    num8pm = extractNumber(await ocrImage(images[2]));
+  if (pdfFiles.length > 2) {
+    console.log("Reading 8 PM PDF...");
+    num8pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[2]));
     console.log("8 PM Result: " + num8pm);
   }
 
-  // 4. Save to database
   const results = {
     "1pm": { "number": num1pm, "date": dateStr },
     "6pm": { "number": num6pm, "date": dateStr },
