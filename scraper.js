@@ -30,18 +30,27 @@ async function ocrPdf(pdfUrl) {
     });
     
     const data = await ocrRes.json();
+    
+    // X-RAY VISION: Print exactly what the OCR API said
+    console.log("--- X-RAY VISION (OCR Response) ---");
+    console.log(JSON.stringify(data).substring(0, 1200));
+    console.log("--- END X-RAY VISION ---");
+
     if (data.ParsedResults && data.ParsedResults.length > 0) {
       return data.ParsedResults[0].ParsedText;
+    } else {
+      console.log("OCR Failed to parse text.");
     }
   } catch (e) {
-    console.error("OCR failed:", e.message);
+    console.error("OCR Network Error:", e.message);
   }
   return null;
 }
 
 function extractNumber(text) {
   if (!text) return "PENDING";
-  const match = text.match(/1[sst]+\s*[Pp]rize\s*([A-Za-z0-9]\s?[A-Za-z0-9]\s?[A-Z0-9]\s?\d\s?\d\s?\d\s?\d\s?\d)/i);
+  // Super loose regex to catch the number no matter what words are around it
+  const match = text.match(/([A-Za-z]\s?[A-Za-z]\s?[A-Z0-9]\s?\d\s?\d\s?\d\s?\d\s?\d)/i);
   if (match) {
     let num = match[1].replace(/\s+/g, '').toUpperCase();
     return num.substring(0,3) + " " + num.substring(3);
@@ -62,21 +71,15 @@ async function main() {
     headers: { 
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-Requested-With': 'XMLHttpRequest',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Referer': 'https://www.nagalandlotteries.com/results.php',
-      'Cookie': 'PHPSESSID=test123' // Adding a fake cookie to look more real
+      'Cookie': 'PHPSESSID=test123'
     },
     body: formBody.toString()
   });
   
   const html = await pageRes.text();
   
-  // SPY LOG IS BACK
-  console.log("--- SPY LOG ---");
-  console.log(html.substring(0, 800)); 
-  console.log("--- END SPY LOG ---");
-
-  // Look for PDFs (case insensitive for .pdf)
   const pdfRegex = /data-id="(.*?\.pdf)"/gi;
   let pdfFiles = [];
   let match;
@@ -91,12 +94,12 @@ async function main() {
   if (pdfFiles.length > 0) {
     console.log("Reading 1 PM PDF...");
     num1pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[0]));
-    console.log("1 PM Result: " + num1pm);
+    console.log(">>> 1 PM RESULT IS: " + num1pm);
   }
   if (pdfFiles.length > 1) {
     console.log("Reading 6 PM PDF...");
     num6pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[1]));
-    console.log("6 PM Result: " + num6pm);
+    console.log(">>> 6 PM RESULT IS: " + num6pm);
   }
 
   const results = {
