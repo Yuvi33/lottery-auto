@@ -2,7 +2,7 @@ const OCR_API_KEY = 'K86614421788957';
 const fs = require('fs');
 const path = require('path');
 
-// STILL TESTING YESTERDAY TO PROVE IT WORKS
+// STILL TESTING YESTERDAY
 const dateStr = '16-06-2026'; 
 
 async function ocrPdf(pdfUrl) {
@@ -17,7 +17,6 @@ async function ocrPdf(pdfUrl) {
     const buffer = await response.arrayBuffer();
     const base64Pdf = Buffer.from(buffer).toString('base64');
     
-    // Send PDF to OCR
     const formData = new URLSearchParams();
     formData.append("base64Image", "data:application/pdf;base64," + base64Pdf);
     formData.append("language", "eng");
@@ -63,27 +62,32 @@ async function main() {
     headers: { 
       'Content-Type': 'application/x-www-form-urlencoded',
       'X-Requested-With': 'XMLHttpRequest',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Referer': 'https://www.nagalandlotteries.com/results.php'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Referer': 'https://www.nagalandlotteries.com/results.php',
+      'Cookie': 'PHPSESSID=test123' // Adding a fake cookie to look more real
     },
     body: formBody.toString()
   });
   
   const html = await pageRes.text();
   
-  // FIND THE PDF FILENAMES (e.g., MN160626.PDF)
-  const pdfRegex = /data-id="(.*?\.PDF)"/gi;
+  // SPY LOG IS BACK
+  console.log("--- SPY LOG ---");
+  console.log(html.substring(0, 800)); 
+  console.log("--- END SPY LOG ---");
+
+  // Look for PDFs (case insensitive for .pdf)
+  const pdfRegex = /data-id="(.*?\.pdf)"/gi;
   let pdfFiles = [];
   let match;
   while ((match = pdfRegex.exec(html)) !== null) {
     pdfFiles.push(match[1]);
   }
 
-  console.log("Found " + pdfFiles.length + " PDF files: " + JSON.stringify(pdfFiles));
+  console.log("Found " + pdfFiles.length + " PDF files.");
 
   let num1pm = "PENDING", num6pm = "PENDING", num8pm = "PENDING";
 
-  // Read the PDFs in order (1st is usually 1pm, 2nd is 6pm, 3rd is 8pm)
   if (pdfFiles.length > 0) {
     console.log("Reading 1 PM PDF...");
     num1pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[0]));
@@ -94,16 +98,11 @@ async function main() {
     num6pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[1]));
     console.log("6 PM Result: " + num6pm);
   }
-  if (pdfFiles.length > 2) {
-    console.log("Reading 8 PM PDF...");
-    num8pm = extractNumber(await ocrPdf('https://www.nagalandlotteries.com/old_results/' + pdfFiles[2]));
-    console.log("8 PM Result: " + num8pm);
-  }
 
   const results = {
     "1pm": { "number": num1pm, "date": dateStr },
     "6pm": { "number": num6pm, "date": dateStr },
-    "8pm": { "number": num8pm, "date": dateStr }
+    "8pm": { "number": "PENDING", "date": dateStr }
   };
 
   fs.writeFileSync(path.join(__dirname, 'data', 'result.json'), JSON.stringify(results, null, 2));
