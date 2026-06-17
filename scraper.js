@@ -1,4 +1,4 @@
-const OCR_API_KEY = 'PASTE_IT_HERE';
+const OCR_API_KEY = 'K86614421788957';
 const fs = require('fs');
 const path = require('path');
 function getTodayDate() {
