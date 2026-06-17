@@ -6,22 +6,22 @@ on:
     - cron: '35 14 * * *'
   workflow_dispatch:
 
+# THIS IS THE MAGIC FIX: Telling GitHub to allow the bot to save files
+permissions:
+  contents: write
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
       
-      # 1. Scrape the numbers
       - run: node scraper.js
-      
-      # 2. Generate SEO pages
       - run: node generate-seo.js
       
-      # 3. Save everything
       - run: |
           git config user.name "Bot"
           git config user.email "bot@github.com"
